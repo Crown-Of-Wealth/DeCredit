@@ -203,3 +203,62 @@
   )
 )
 
+;; Comprehensive credit score calculation and update system
+;; This function performs a holistic analysis of user behavior and updates their credit score
+;; based on multiple risk factors including payment history, collateral management, and loan performance
+(define-public (calculate-and-update-credit-score (user principal))
+  (let (
+    (profile (unwrap! (map-get? user-profiles user) ERR-LOAN-NOT-FOUND))
+    (base-score (calculate-base-score profile))
+    (total-loans (get total-loans profile))
+    (successful-ratio (if (> total-loans u0) 
+                        (/ (* (get successful-payments profile) u100) total-loans) u0))
+    (missed-ratio (if (> total-loans u0) 
+                    (/ (* (get missed-payments profile) u100) total-loans) u0))
+    
+    ;; Advanced scoring factors
+    (payment-consistency-bonus (if (>= successful-ratio u90) u50 u0))
+    (high-volume-bonus (if (> total-loans u10) u25 u0))
+    (collateral-management-score (get average-collateral-ratio profile))
+    (collateral-bonus (if (>= collateral-management-score u200) u30 
+                      (if (>= collateral-management-score u150) u15 u0)))
+    
+    ;; Risk penalties
+    (missed-payment-penalty (* missed-ratio u2))
+    (low-collateral-penalty (if (< collateral-management-score u130) u40 u0))
+    (recent-activity-bonus (if (> (- block-height (get last-updated profile)) u100) u0 u10))
+    
+    ;; Calculate final score with bounds checking
+    (raw-score (+ base-score payment-consistency-bonus high-volume-bonus 
+                  collateral-bonus recent-activity-bonus 
+                  (- u0 missed-payment-penalty) (- u0 low-collateral-penalty)))
+    (bounded-score (if (> raw-score MAX-CREDIT-SCORE) MAX-CREDIT-SCORE
+                   (if (< raw-score MIN-CREDIT-SCORE) MIN-CREDIT-SCORE raw-score)))
+  )
+    ;; Update the user's credit score and profile
+    (map-set user-profiles user
+      (merge profile {
+        credit-score: bounded-score,
+        last-updated: block-height
+      }))
+    
+    ;; Return comprehensive score breakdown for transparency
+    (ok {
+      new-score: bounded-score,
+      previous-score: (get credit-score profile),
+      payment-ratio: successful-ratio,
+      missed-ratio: missed-ratio,
+      collateral-ratio: collateral-management-score,
+      total-loans: total-loans,
+      score-factors: {
+        base: base-score,
+        consistency-bonus: payment-consistency-bonus,
+        volume-bonus: high-volume-bonus,
+        collateral-bonus: collateral-bonus,
+        activity-bonus: recent-activity-bonus,
+        missed-penalty: missed-payment-penalty,
+        collateral-penalty: low-collateral-penalty
+      }
+    })
+  )
+)
